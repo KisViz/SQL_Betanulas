@@ -834,15 +834,24 @@ Using the system stored procedure sp_rename:
 Using the SQL Server Management Studio
 - ![alt text](media/image-49.png)
 
+### Unique index
+A unique index ensures the index key columns do not contain any duplicate values.<br>
+A unique index may consist of one or many columns. If a unique index has one column, the values in this column will be unique. In case the unique index has multiple columns, the combination of values in these columns is unique.<br>
+A unique index can be clustered or non-clustered.
+```sql
+CREATE UNIQUE INDEX index_name
+ON table_name(column_list);
+```
+![alt text](media/image-50.png)
 
+unique index and NULL
+- NULL is special. It is a marker that indicates the missing information or not applicable.
+- NULL is not even equal to itself. However, when it comes to a unique index, SQL Server treats NULL values the same. It means that if you create a unique index on a nullable column, you can have only one NULL value in this column
 
-
-
-
-
-
-
-
+Unique index vs. UNIQUE constraint 
+- Both unique index and UNIQUE constraint enforces the uniqueness of values in one or many columns. SQL Server validates duplicates in the same manner for both unique index and unique constraint.
+- When you create a unique constraint, behind the scene, SQL Server creates a unique index associated with this constraint.
+- However, creating a unique constraint on columns makes the objective of the unique index clear.
 
 
 
