@@ -772,31 +772,43 @@ ORDER BY
 ![alt text](media/image-42.png)<br>
 Az indexek létrehozása után nagyobb lesz a költség.
 
+## Indexek bővebben
+The production.parts table does not have a primary key. Therefore SQL Server stores its rows in an unordered structure called a heap.<br>
+When you query data from the production.parts table, the query optimizer needs to scan the whole table to search.
+![alt text](media/image-43.png)<br>
+Ez sok idő ha sok sor van a táblában, ezért vannak az indexek, amik felgyorsítják a folyamatot.
 
+Clustered index:
+- Stores data rows in a sorted structure based on its key values.
+- Each table has only one clustered index because data rows can be only sorted in one order.
+- A table that has a clustered index is called a clustered table.
+- B-ákat használ (alga2 :) ) -> logaritmikus időben keresés, beszúrás, fissítás, tölés
 
+When you create a table with a primary key, SQL Server automatically creates a corresponding clustered index that includes primary key columns.
+```sql
+CREATE TABLE production.part_prices(
+    part_id int,
+    valid_from date,
+    price decimal(18,4) not null,
+    PRIMARY KEY(part_id, valid_from) 
+);
+```
+![alt text](media/image-44.png)<br>
+If you add a primary key constraint to an existing table that already has a clustered index, SQL Server will enforce the primary key using a non-clustered index:
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+### CREATE CLUSTERED INDEX
+```sql
+CREATE CLUSTERED INDEX index_name
+ON schema_name.table_name (column_list);  
+```
+When a table does not have a primary key, you can use the CREATE CLUSTERED INDEX statement to add a clustered index to it.
+```sql
+CREATE CLUSTERED INDEX ix_parts_id
+ON production.parts (part_id);  
+```
+![alt text](media/image-45.png)<br>
+![alt text](media/image-46.png)<br>
+When executing the following statement, the SQL Server traverses the index (Clustered Index Seek) to locate the rows, which is faster than scanning the whole table.
 
 
 
