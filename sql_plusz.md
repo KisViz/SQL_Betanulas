@@ -710,12 +710,67 @@ Using OBJECT_DEFINITION() function:
     ```
 
 ### Indexed VIEW
-Indexed views are materialized views that stores data physically like a table hence may provide some the performance benefit if they are used appropriately.<br>
+Indexed views are materialized views that stores data physically like a table hence may provide some the performance benefit if they are used appropriately.
 
 How to create an indexed view:
 1. Create a view that uses the WITH SCHEMABINDING option which binds the view to the schema of the underlying tables.
 2. create a unique clustered index on the view. This materializes the view.
 
+Because of the WITH SCHEMABINDING option, if you want to change the structure of the underlying tables which affect the indexed view’s definition, you must drop the indexed view first before applying the changes.<br>
+Amikor a táblákba van adatmódosítás, akkor az indexed viewban is módosítani kell, emiatt több erőforrást jelentenek ezek a múveletek. Emiatt olyan táblákhoz érdemes indexed view-okat készíteni, amikben ritkán van adatmódosítás.
+
+---
+Készítünk egy VIEW-t a SCHEMABINDING opcióval
+```sql
+CREATE VIEW production.product_master
+WITH SCHEMABINDING
+AS 
+SELECT
+    product_id,
+    product_name,
+    model_year,
+    list_price,
+    brand_name,
+    category_name
+FROM
+    production.products p
+INNER JOIN production.brands b 
+    ON b.brand_id = p.brand_id
+INNER JOIN production.categories c 
+    ON c.category_id = p.category_id;
+```
+Megnézzük mennyi a költsége eredetileg a lekérdezésnek. Ezután létrehozunk két indexet és megnézzük újra a lekérdezés költségét.
+```sql
+SELECT 
+    * 
+FROM
+    production.product_master
+ORDER BY
+    product_name;
+
+GO
+
+CREATE UNIQUE CLUSTERED INDEX 
+    ucidx_product_id 
+ON production.product_master(product_id);
+
+GO
+
+CREATE NONCLUSTERED INDEX 
+    ucidx_product_name
+ON production.product_master(product_name);
+
+GO
+
+SELECT 
+    * 
+FROM
+    production.product_master
+ORDER BY
+    product_name;
+```
+![alt text](media/image-42.png)<br>
+Az indexek létrehozása után nagyobb lesz a költség.
 
 
 
