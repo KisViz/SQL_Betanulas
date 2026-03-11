@@ -773,6 +773,7 @@ ORDER BY
 Az indexek létrehozása után nagyobb lesz a költség.
 
 ## Indexek bővebben
+### Clustered indexes
 The production.parts table does not have a primary key. Therefore SQL Server stores its rows in an unordered structure called a heap.<br>
 When you query data from the production.parts table, the query optimizer needs to scan the whole table to search.
 ![alt text](media/image-43.png)<br>
@@ -809,6 +810,28 @@ ON production.parts (part_id);
 ![alt text](media/image-45.png)<br>
 ![alt text](media/image-46.png)<br>
 When executing the following statement, the SQL Server traverses the index (Clustered Index Seek) to locate the rows, which is faster than scanning the whole table.
+
+### CREATE INDEX
+Non-clustered indexes:
+- Sorts and stores data separately from the data rows in the table. It is a copy of selected columns of data from a table with the links to the associated table.
+- Uses the B-tree structure to organize its data.
+- A table may have one or more nonclustered indexes and each non-clustered index may include one or more columns in a table.
+```sql
+CREATE [NONCLUSTERED] INDEX index_name
+ON table_name(column_list);
+```
+![alt text](media/image-47.png)
+![alt text](media/image-48.png)
+
+
+
+
+
+
+
+
+
+
 
 
 
