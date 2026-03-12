@@ -516,6 +516,131 @@ Legacy LOB types cannot be sorted directly. They must be cast to varchar(max) or
         - Lock the entire table.
         - A query affects a large portion of the table.
 
+## Full text search előnyei keresésnél, feature-ök, miket tud (elirások, ékezetes-speciális karakterek)
+One or more specific words or phrases (simple term)
+- ```sql
+    SELECT ProductID, Name
+    FROM Production.Product
+    WHERE CONTAINS(Name, 'Mountain');
+    ```
+A word or a phrase where the words begin with specified text (prefix term)
+- ```sql
+    SELECT ProductID, Name
+    FROM Production.Product
+    WHERE CONTAINS(Name, '"Mount*"');
+    ```
+Inflectional forms of a specific word (generation term) (a szó ragozott formáit is megtalálja)
+- ```sql
+    SELECT ProductReviewID, Comments
+    FROM Production.ProductReview
+    WHERE CONTAINS(Comments, 'FORMSOF(INFLECTIONAL, can)');
+    ```
+A word or phrase close to another word or phrase (proximity term)
+- ```sql
+    SELECT ProductReviewID, Comments
+    FROM Production.ProductReview
+    WHERE CONTAINS(Comments, 'NEAR((quality, bike))');
+    ```
+Synonymous forms of a specific word (thesaurus) (szinonímák)
+- ```sql
+    SELECT ProductID, Name
+    FROM Production.Product
+    WHERE CONTAINS(Name, 'FORMSOF(THESAURUS, contest)');
+
+    go 
+
+    select Name from Production.Product
+    ```
+    - nem sikerült valamiért:(
+
+Words or phrases using weighted values (weighted term)
+- A találatok relevancia alapján súlyozhatók.
+- ```sql
+    SELECT p.ProductID, p.Name, ft.RANK
+    FROM CONTAINSTABLE(Production.Product, Name,
+        'ISABOUT ("Mountain" WEIGHT(0.9), "Bike" WEIGHT(0.5))') AS ft
+    JOIN Production.Product p ON p.ProductID = ft.[KEY]
+    ORDER BY ft.RANK DESC;
+    ```
+    - A Mountain fontosabb, mint a Bike, ezért nagyobb súlyt kap.
+    - A CONTAINSTABLE nem ad vissza más oszlopokat, csak:
+        - a találat kulcsát (KEY)
+        - a rangsorolást (RANK)
+    - Ezért mindig JOIN‑olni kell az eredeti táblára, különben nem tudod kiolvasni a Name vagy más oszlopokat.
+
+## Full text hol a katlógus, hogy tudom újraépíteni
+![alt text](media/image-53.png)
+
+## AND OR AND OR hogyan zárójelezi (hogyan kéne hogy ugyan ezt az ereményt kapjam) és mi van ha van benne not (precedencia sorrend)
+A következő sorrendben hajtódnak végre: NOT, AND, OR
+```sql
+select * from Sales.SalesOrderDetail
+where CarrierTrackingNumber = '4E0A-4F89-AE' and OrderQty > 1 or UnitPrice > 2000 and LineTotal < 1000 or ProductID > 1000
+
+go 
+
+select * from Sales.SalesOrderDetail
+where (CarrierTrackingNumber = '4E0A-4F89-AE' AND OrderQty > 1)
+OR
+(UnitPrice > 2000 AND LineTotal < 1000)
+OR
+(ProductID > 1000)
+```
+
+## A between karakterekre hogyan működik
+Működik
+![alt text](media/image-54.png)
+
+## Miért van between ha lassabb (vallás?)
+Lehet
+```sql
+SELECT * from Sales.SalesOrderDetail 
+where UnitPrice >= 20 and UnitPrice <= 2200
+
+SELECT * from Sales.SalesOrderDetail 
+where UnitPrice between 20 and 2200
+```
+![alt text](media/image-56.png)
+- Csak az elsőt futtattam a >= <= -vel, a többi az betweenes. Néha jobb, néha rosszabb eredmény
+
+![alt text](media/image-55.png)
+- Egyeébként a betweent >= <= -re fordítja (ahogy zölden is látszik)
+
+## vezérlési szerkezetek és így 10k elemet taralmaz az in listában fölsorolva újra próbál (https://stackoverflow.com/questions/6069024/syntax-of-for-loop-in-sql-server)
+```sql
+declare 
+    @count int = 9362,
+    @result varchar(max) = '(',
+    @id int
+
+while (@count > 0)
+begin
+    select @id = SalesOrderID
+    from (
+        select SalesOrderID, 
+               ROW_NUMBER() over (order by SalesOrderID) as rn -- minden sor mellé tesz egy sorszámot
+        from Sales.SalesOrderDetail
+    ) x
+    where rn = @count; -- visszafelé számolja le őket
+
+    set @result = @result + cast(@id as varchar(20)) + ', ';
+
+    set @count = @count - 1;
+end
+
+-- Az utolsó vessző + szóköz levágása
+select left(@result, len(@result) - 2) + ')' as SalesOrderIDs;
+```
+- ennyi fér csak bele a max 65535 karakterbe
+```sql
+SELECT SalesOrderDetailID
+  from Sales.SalesOrderDetail
+  where SalesOrderID in -- előző eredménye ide bemásolva
+```
+![alt text](media/image-57.png)
+- Simán leutott
+
+## olyan táblában nézni a joinos where amit hozzá joinolok (prsonphone)
 
 
 
@@ -526,16 +651,24 @@ Legacy LOB types cannot be sorted directly. They must be cast to varchar(max) or
 
 
 
-full text search elonyei keresesnel, feature-ok miket tud (elirasok, ékezetes-specialis karakterek)
-full text hol a katlogs, hogy tudom ujra epíteni
-	In Object Explorer, expand the server, expand Databases, and expand the database in which you want to create the full-text catalog.
-	Expand Storage, and then right-click Full Text Catalogs.
-	Select New Full-Text Catalog.
-AND OR AND OR hogyan zárójelezi (hogyna kéne hogy ugyan ezt az ereményt kapjam) és mi van ha van benne not (precedencia sorrend)
-a between karakterekre hogyan működik
-miért van between ha lasabb (vallás?)
-vezérlési szerkezetek és így 10k elemet taralmaz az in listában fölsorolva újra próbál (https://stackoverflow.com/questions/6069024/syntax-of-for-loop-in-sql-server)
-olyan táblában nézni a joinos where amit hozzá joinolok (prsonphone)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 cast intről double-ra, money
 money miért jobb, mint a decimal (float, numeric, real, money előnyök hátrányok) és ezek castolása
 image binary mit tud miben jobb az image
