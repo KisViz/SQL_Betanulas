@@ -820,7 +820,34 @@ select sum(
 from sales.staffs
 ```
 
-## Gouping csoportositas (727. sor alisas-ok) átlag ár mondjuk 200 hogy szűrök
+## Gouping csoportosítás (727. sor alisas-ok) átlag ár mondjuk 200. Hogy szűrök?
+having
+```sql
+use AdventureWorks2025
+
+select Production.ProductCategory.ProductCategoryID,
+    grouping(Production.ProductCategory.ProductCategoryID),
+    Production.Product.ProductSubcategoryID,
+    grouping(Production.Product.ProductSubcategoryID),
+    AVG(ListPrice) as 'Average',
+    MIN(ListPrice) as 'Minimum',
+    MAX(ListPrice) as 'Maximum'
+from Production.Product
+join Production.ProductSubcategory
+on Production.ProductSubcategory.ProductSubcategoryID = 
+    Production.Product.ProductSubcategoryID
+join Production.ProductCategory
+on Production.ProductSubcategory.ProductCategoryID = 
+    Production.ProductCategory.ProductCategoryID
+where ListPrice <> 0 
+group by 
+    Production.ProductCategory.ProductCategoryID, 
+    Product.ProductSubcategoryID
+    with rollup
+having AVG(ListPrice) > 200
+```
+
+
 
 
 
