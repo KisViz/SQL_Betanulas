@@ -847,6 +847,273 @@ group by
 having AVG(ListPrice) > 200
 ```
 
+## melyik volt az aminél nem működött go nélkül
+sql.md 1561. sor
+
+## shrinknél file
+Shrinks the current database's specified data or log file size. You can use it to move data from one file to other files in the same filegroup, which empties the file and allows for its database removal. You can shrink a file to less than its size at creation, resetting the minimum file size to the new value.
+
+## Mire jó a logfile, hogy működik, mi kerül bele (failelt tranzakciók elvileg belekerünek)
+Management -> SQL Server Logs<br>
+A log minden DML és DDL műveletet rögzít (INSERT, UPDATE, DELETE, CREATE, ALTER) még azelőtt, hogy a módosítások a data file‑ba kerülnének.<br>
+Crash recovery:
+- előre pörgeti (roll forward) azokat a módosításokat, amelyek már a logban vannak, de még nem kerültek ki a data file‑ba,
+- majd visszagörgeti (rollback) azokat a tranzakciókat, amelyek nem fejeződtek be.
+
+A logba bekerül:
+- tranzakció azonosítója
+- művelet típusa
+- módosított oldalak LSN-je (log sequence number)
+- régi és új értékek
+- commit / rollback információ
+
+Failed tranzakciók is bekerülnek, mert rollbackhez szükségesek. A log minden tranzakciót rögzít, még a megszakadtakat is — különben nem lehetne visszaállítani a konzisztens állapotot.
+
+## Recovery models
+Simple recovery model
+- The simple recovery model doesn't support transaction log backups.
+- The Database Engine automatically reclaims log space to keep space requirements low, so you don't need to manage the transaction log space.
+
+Full recovery model
+- Requires transaction log backups.
+- No work is lost due to a lost or damaged data file. You can recover to an arbitrary point in time (for example, before an application or user error).
+
+Bulk-logged recovery model
+- Requires transaction log backups.
+- A variant of the full recovery model that permits high-performance bulk copy operations.
+- Reduces log space usage by using minimal logging for most bulk operations.
+
+## 488. sor sorbarakni
+```sql
+use AdventureWorks2025
+
+SELECT 
+    t.name,
+    s.name,
+    p.rows,
+    (SUM(a.total_pages) * 8) AS TotalSpaceKB,
+    (SUM(a.used_pages) * 8) AS UsedSpaceKB
+ FROM 
+    sys.tables t
+INNER JOIN 
+    sys.indexes i ON t.object_id = i.object_id
+INNER JOIN 
+    sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+INNER JOIN 
+    sys.allocation_units a ON p.partition_id = a.container_id
+INNER JOIN 
+    sys.schemas s ON t.schema_id = s.schema_id
+GROUP BY 
+    t.name, s.name, p.rows
+ORDER BY 
+    TotalSpaceKB DESC;
+```
+
+## Emplyee beszúrása, db id-ját felhasználva szurjunk be territoyId-t
+```sql
+use AdventureWorks2025
+
+insert into dbo.Employees values (
+	'Bela',
+	'Bela',
+	'meno',
+	'Mr',
+	1955-04-04,
+	1999-01-01,
+	'Mars ter vege',
+	'Szeged',
+	'CS',
+	'6722',
+	'HU',
+	'(300) 303-3030',
+	'3030',
+	0x151C2F00020000000D000,
+	'Ez egy szoveg most',
+	9,
+	'http://accweb/emmployees/davolio.bmp'
+)
+
+go
+
+insert into dbo.EmployeeTerritories values (
+	SCOPE_IDENTITY(),
+	19428
+)
+```
+
+## Két lekérdezéssel izolációs szintek tesztelése (tranzakciókkal) 
+READ UNCOMMITTED - Dirty read
+- Statements can read rows that were modified by other transactions but not yet committed.
+- ```sql
+    use SampleDatabase
+
+    BEGIN TRAN;
+
+    UPDATE dbo.ujtabla
+    SET first_name = 'dsa'
+    WHERE first_name = 'asd';
+
+    -- Nincs commit
+    --commit
+    ```
+- ```sql
+    SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'dsa';
+    ```
+READ COMMITTED - Dirty read NINCS
+- Statements can't read data that was modified but not committed by other transactions.
+- ```sql
+    BEGIN TRAN;
+
+    UPDATE dbo.ujtabla
+    SET first_name = 'asd'
+    WHERE first_name = 'dsa';
+
+    -- Nincs commit!
+    commit
+    ```
+- ```sql
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'asd';
+    ```
+REPEATABLE READ
+- Statements can't read data that was modified but not yet committed by other transactions, and that no other transactions can modify data that was read by the current transaction until the current transaction completes.
+- ```sql
+    SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+    BEGIN TRAN;
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'asd';
+
+    WAITFOR DELAY '00:00:20';
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'asd';  -- ugyanazt kell latni
+    ```
+- ```sql
+    UPDATE dbo.ujtabla
+    SET first_name = 'dsa'
+    WHERE first_name = 'asd';
+    ```
+SNAPSHOT
+- Data read by any statement in a transaction is the transactionally consistent version of the data that existed at the start of the transaction. The transaction can only recognize data modifications that were committed before the start of the transaction. Data modifications made by other transactions after the start of the current transaction aren't visible to statements executing in the current transaction.
+- ```sql
+    ALTER DATABASE SampleDatabase SET ALLOW_SNAPSHOT_ISOLATION ON;
+
+    BEGIN TRAN;
+
+    UPDATE dbo.ujtabla
+    SET first_name = 'asd'
+    WHERE first_name = 'dsa';
+
+    -- Nincs commit
+    commit
+    ```
+- ```sql
+    SET TRANSACTION ISOLATION LEVEL SNAPSHOT;
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'asd';
+    ```
+SERIALIZABLE
+- Specifies the following conditions:
+    - Statements can't read data that was modified but not yet committed by other transactions.
+    - No other transactions can modify data that was read by the current transaction until the current transaction completes.
+    - Other transactions can't insert new rows with key values that would fall in the range of keys read by any statements in the current transaction until the current transaction completes.
+- ```sql
+    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    BEGIN TRAN;
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'Anna';
+
+    WAITFOR DELAY '00:00:20';
+
+    SELECT * FROM dbo.ujtabla WHERE first_name = 'Anna';
+    ```
+- ```sql
+    INSERT INTO dbo.ujtabla (first_name)
+    VALUES ('Anna');
+    ```
+
+## Lockok lekérdezése (isert, delete, update)
+```sql
+-- shows all the locks currently held in the system and the processes that are requesting them
+EXEC sp_lock;
+
+-- command will return a list of active sessions, along with information like the session ID, status, login, and more
+-- current users, sessions, and processes, including any that are blocked or are causing a block
+EXEC sp_who2 'active';
+```
+
+## Mi van ha két tranzakciót indítasz
+## Beragadt lekérdezések lelövése
+Deadlock detection is performed by a lock monitor thread that periodically initiates a search through all of the tasks in an instance of the Database Engine.
+- The default interval is 5 seconds.
+- If the lock monitor thread finds deadlocks, the deadlock detection interval drops from 5 seconds to as low as 100 milliseconds depending on the frequency of deadlocks.
+- If the lock monitor thread stops finding deadlocks, the Database Engine increases the intervals between searches to 5 seconds.
+```sql
+Session 1                   | Session 2
+===========================================================
+-- 1                        | -- 1 
+BEGIN TRAN;                 | BEGIN TRAN;
+===========================================================
+-- 2
+update dbo.ujtabla
+set first_name = 'asd'
+where first_name = 'dsa'
+===========================================================
+                             | -- 3
+                             | set betu = 'c'
+                             | where betu = 'b'
+===========================================================
+-- 4
+update temp.abc
+set betu = 'b'
+where betu = 'a'
+===========================================================
+<blocked>                    | -- 5
+                             | update dbo.ujtabla
+                             | set first_name = 'Anna'
+                             | where first_name = 'Fabiola'
+===========================================================
+                             | <blocked>
+===========================================================
+```
+```sql
+EXEC sp_lock;
+
+KILL 57;
+```
+Így lehet manuálisan feloldani egy deadlockot (befejezni a tranzakciót), viszont a deadlocketectiont nem lehet kikapcsolni, legfeljebb a prioritásokat állítani.
+```sql
+SET DEADLOCK_PRIORITY LOW;   -- nagyobb esellyel lesz aldozat
+SET DEADLOCK_PRIORITY -10;
+SET DEADLOCK_PRIORITY HIGH;  -- kisebb esellyel lesz aldozat
+SET DEADLOCK_PRIORITY 10;
+SET DEADLOCK_PRIORITY NORMAL; -- alapertelmezett
+SET DEADLOCK_PRIORITY 0;
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1128,7 +1395,7 @@ Az indexek létrehozása után nagyobb lesz a költség.
 ## Indexek bővebben
 ### Clustered indexes
 The production.parts table does not have a primary key. Therefore SQL Server stores its rows in an unordered structure called a heap.<br>
-When you query data from the production.parts table, the query optimizer needs to scan the whole table to search.
+When you query data from the production.parts table, the query optimizer needs to scan the whole table to search.<br>
 ![alt text](media/image-43.png)<br>
 Ez sok idő ha sok sor van a táblában, ezért vannak az indexek, amik felgyorsítják a folyamatot.
 
@@ -1310,22 +1577,324 @@ WHERE phone = '(281) 363-3309';
 Filtered indexes can help you save space especially when the index key columns are sparse (optimized for storing NULL values). Sparse columns are the ones that have many NULL values.<br>
 Filtered indexes reduce the maintenance cost because only a portion of data rows, not all, needs to be updated when the data in the associated table changes.
 
+## Stored Procedures
+### Létrehozás, végrehajtás, módosítás, törlés 
+```sql
+CREATE PROCEDURE uspProductList
+AS
+BEGIN
+    SELECT 
+        product_name, 
+        list_price
+    FROM 
+        production.products
+    ORDER BY 
+        product_name;
+END;
 
+EXECUTE uspProductList;
 
+ALTER PROCEDURE uspProductList
+AS
+BEGIN
+    SELECT 
+        product_name, 
+        list_price
+    FROM 
+        production.products
+    ORDER BY 
+        list_price 
+END;
 
+DROP PROCEDURE uspProductList;
+```
+### Paraméterrel
+```sql
+-- 1 parameterrel
+CREATE PROCEDURE uspFindProducts(@min_list_price AS DECIMAL)
+AS
+BEGIN
+    SELECT
+        product_name,
+        list_price
+    FROM 
+        production.products
+    WHERE
+        list_price >= @min_list_price
+    ORDER BY
+        list_price;
+END;
 
+EXEC uspFindProducts 100;
 
+-- tobb parameterrel
+ALTER PROCEDURE uspFindProducts(
+    @min_list_price AS DECIMAL
+    ,@max_list_price AS DECIMAL
+)
+AS
+BEGIN
+    SELECT
+        product_name,
+        list_price
+    FROM 
+        production.products
+    WHERE
+        list_price >= @min_list_price AND
+        list_price <= @max_list_price
+    ORDER BY
+        list_price;
+END;
 
+EXECUTE uspFindProducts 900, 1000;
 
+EXECUTE uspFindProducts -- parameter megnevezessel
+    @min_list_price = 900, 
+    @max_list_price = 1000;
 
+-- szoveg parameterrel
+ALTER PROCEDURE uspFindProducts(
+    @min_list_price AS DECIMAL
+    ,@max_list_price AS DECIMAL
+    ,@name AS VARCHAR(max)
+)
+AS
+BEGIN
+    SELECT
+        product_name,
+        list_price
+    FROM 
+        production.products
+    WHERE
+        list_price >= @min_list_price AND
+        list_price <= @max_list_price AND
+        product_name LIKE '%' + @name + '%'
+    ORDER BY
+        list_price;
+END;
 
+EXECUTE uspFindProducts 
+    @min_list_price = 900, 
+    @max_list_price = 1000,
+    @name = 'Trek';
 
+-- opcionalis (alapertelmezett) parameterrel
+ALTER PROCEDURE uspFindProducts(
+    @min_list_price AS DECIMAL = 0
+    ,@max_list_price AS DECIMAL = 999999
+    ,@name AS VARCHAR(max)
+)
+AS
+BEGIN
+    SELECT
+        product_name,
+        list_price
+    FROM 
+        production.products
+    WHERE
+        list_price >= @min_list_price AND
+        list_price <= @max_list_price AND
+        product_name LIKE '%' + @name + '%'
+    ORDER BY
+        list_price;
+END;
 
+EXECUTE uspFindProducts 
+    @name = 'Trek';
+```
+### Variables
+```sql
 
+use SampleDatabase
 
+-- valtozo deklaralasa
+DECLARE @model_year SMALLINT;
 
+-- ertekadas
+SET @model_year = 2018;
 
+SELECT
+    product_name,
+    model_year,
+    list_price 
+FROM 
+    production.products
+WHERE 
+    model_year = @model_year
+ORDER BY
+    product_name;
 
+-- eredmenyek eltarolasa
+DECLARE @product_count INT;
+
+SET @product_count = (
+    SELECT 
+        COUNT(*) 
+    FROM 
+        production.products 
+);
+
+SELECT @product_count;
+
+-- kiiratas
+PRINT @product_count;
+
+PRINT 'The number of products is ' + CAST(@product_count AS VARCHAR(MAX));
+
+-- lekerdezes valtozoba
+DECLARE 
+    @product_name VARCHAR(MAX),
+    @list_price DECIMAL(10,2);
+
+SELECT 
+    @product_name = product_name,
+    @list_price = list_price
+FROM
+    production.products
+WHERE
+    product_id = 100;
+
+SELECT 
+    @product_name AS product_name, 
+    @list_price AS list_price;
+```
+### Output parameters
+```sql
+CREATE PROCEDURE uspFindProductByModel (
+    @model_year SMALLINT,
+    @product_count INT OUTPUT
+) AS
+BEGIN
+    SELECT 
+        product_name,
+        list_price
+    FROM
+        production.products
+    WHERE
+        model_year = @model_year;
+
+    SELECT @product_count = @@ROWCOUNT;
+END;
+
+-- megghivas
+DECLARE @count INT;
+
+EXEC uspFindProductByModel
+    @model_year = 2018,
+    @product_count = @count OUTPUT;
+
+SELECT @count AS 'Number of products found';
+```
+### BEGIN END<br>
+The BEGIN...END statement is used to define a statement block. A statement block consists of a set of SQL statements that execute together. A statement block is also known as a batch.
+```sql
+BEGIN
+    { sql_statement | statement_block}
+END
+```
+```sql
+BEGIN
+    SELECT
+        product_id,
+        product_name
+    FROM
+        production.products
+    WHERE
+        list_price > 100000;
+
+    IF @@ROWCOUNT = 0
+        PRINT 'No product with price greater than 100000 found';
+END
+```
+Lehet nestelni.
+### IF ELSE
+The IF...ELSE statement is a control-flow statement that allows you to execute or skip a statement block based on a specified condition.
+```sql
+IF boolean_expression   
+BEGIN
+    { statement_block }
+END
+```
+```sql
+BEGIN
+    DECLARE @sales INT;
+
+    SELECT 
+        @sales = SUM(list_price * quantity)
+    FROM
+        sales.order_items i
+        INNER JOIN sales.orders o ON o.order_id = i.order_id
+    WHERE
+        YEAR(order_date) = 2018;
+
+    SELECT @sales;
+
+    IF @sales > 1000000
+    BEGIN
+        PRINT 'Great! The sales amount in 2018 is greater than 1,000,000';
+    END
+END
+```
+Lehet nestelni.
+### WHILE
+The WHILE statement is a control-flow statement that allows you to execute a statement block repeatedly as long as a specified condition is TRUE.
+```sql
+WHILE Boolean_expression   
+     { sql_statement | statement_block}  
+```
+```sql
+DECLARE @counter INT = 1;
+
+WHILE @counter <= 5
+BEGIN
+    PRINT @counter;
+    SET @counter = @counter + 1;
+END
+```
+### BREAK
+To exit the current iteration of a loop, you use the BREAK statement.
+```sql
+WHILE Boolean_expression
+BEGIN
+    -- statements
+   IF condition
+        BREAK;
+    -- other statements    
+END
+```
+```sql
+DECLARE @counter INT = 0;
+
+WHILE @counter <= 5
+BEGIN
+    SET @counter = @counter + 1;
+    IF @counter = 4
+        BREAK;
+    PRINT @counter;
+END
+```
+### CONTINUE
+The CONTINUE statement stops the current iteration of the loop and starts the new one.
+```sql
+WHILE Boolean_expression
+BEGIN
+    -- code to be executed
+    IF condition
+        CONTINUE;
+    -- code will be skipped if the condition is met
+END
+```
+```sql
+DECLARE @counter INT = 0;
+
+WHILE @counter < 5
+BEGIN
+    SET @counter = @counter + 1;
+    IF @counter = 3
+        CONTINUE;	
+    PRINT @counter;
+END
+```
 
 
 

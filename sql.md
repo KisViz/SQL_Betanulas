@@ -1937,3 +1937,34 @@
 # Hasznos oldalak
 - https://www.sqlservertutorial.net/
 - https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/track-data-changes-sql-server?view=sql-server-ver17
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
