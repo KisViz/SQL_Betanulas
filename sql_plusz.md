@@ -1896,6 +1896,273 @@ BEGIN
 END
 ```
 
+### CURSOR
+A database cursor is an object that enables traversal over the rows of a result set. It allows you to process individual row returned by a query.
+```sql
+-- declare a cursor
+DECLARE cursor_name CURSOR
+    FOR select_statement;
+
+-- open and populate the cursor by executing the SELECT statement
+OPEN cursor_name;
+
+-- fetch a row from the cursor into one or more variables
+FETCH NEXT FROM cursor INTO variable_list;
+
+-- SQL Server provides the @@FETCHSTATUS function that returns the status of the last cursor FETCH statement executed against the cursor; If @@FETCHSTATUS returns 0, meaning the FETCH statement was successful. You can use the WHILE statement to fetch all rows from the cursor
+WHILE @@FETCH_STATUS = 0  
+    BEGIN
+        FETCH NEXT FROM cursor_name;  
+    END;
+
+-- close the cursor
+CLOSE cursor_name;
+
+-- deallocate the cursor
+DEALLOCATE cursor_name;
+```
+```sql
+-- declare two variables
+DECLARE 
+    @product_name VARCHAR(MAX), 
+    @list_price   DECIMAL;
+
+DECLARE cursor_product CURSOR
+FOR SELECT 
+        product_name, 
+        list_price
+    FROM 
+        production.products;
+
+-- open the cursor
+OPEN cursor_product;
+
+-- fetch each row
+FETCH NEXT FROM cursor_product INTO 
+    @product_name, 
+    @list_price;
+
+WHILE @@FETCH_STATUS = 0
+    BEGIN
+        PRINT @product_name + CAST(@list_price AS varchar);
+        FETCH NEXT FROM cursor_product INTO 
+            @product_name, 
+            @list_price;
+    END;
+
+-- close the cursor
+CLOSE cursor_product;
+
+-- deallocate the cursor
+DEALLOCATE cursor_product;
+```
+
+### TRY CATCH
+```sql
+BEGIN TRY  
+   -- statements that may cause exceptions
+END TRY  
+BEGIN CATCH  
+   -- statements that handle exception
+END CATCH  
+
+```
+CATCH block functions:
+- ERROR_LINE() returns the line number on which the exception occurred.
+- ERROR_MESSAGE() returns the complete text of the generated error message.
+- ERROR_PROCEDURE() returns the name of the stored procedure or trigger where the error occurred.
+- ERROR_NUMBER() returns the number of the error that occurred.
+- ERROR_SEVERITY() returns the severity level of the error that occurred.
+- ERROR_STATE() returns the state number of the error that occurred.
+```sql
+CREATE PROC usp_divide(
+    @a decimal,
+    @b decimal,
+    @c decimal output
+) AS
+BEGIN
+    BEGIN TRY
+        SET @c = @a / @b;
+    END TRY
+    BEGIN CATCH
+        SELECT  
+            ERROR_NUMBER() AS ErrorNumber  
+            ,ERROR_SEVERITY() AS ErrorSeverity  
+            ,ERROR_STATE() AS ErrorState  
+            ,ERROR_PROCEDURE() AS ErrorProcedure  
+            ,ERROR_LINE() AS ErrorLine  
+            ,ERROR_MESSAGE() AS ErrorMessage;  
+    END CATCH
+END;
+GO
+
+DECLARE @r decimal;
+EXEC usp_divide 10, 2, @r output;
+PRINT @r;
+
+DECLARE @r2 decimal;
+EXEC usp_divide 10, 0, @r2 output;
+PRINT @r2;
+```
+
+### RAISEERROR 
+```sql
+RAISERROR ( { message_id | message_text | @local_variable }  
+    { ,severity ,state }  
+    [ ,argument [ ,...n ] ] )  
+    [ WITH option [ ,...n ] ];
+```
+message_id
+- The message_id is a user-defined error message number stored in the sys.messages catalog view.<br>
+To add a new user-defined error message number, you use the stored procedure sp_addmessage.
+- ```sql
+    EXEC sp_addmessage 
+        @msgnum = 50005, 
+        @severity = 1, 
+        @msgtext = 'A custom error message';
+    ```
+- To use this message_id, you execute the RAISEERROR statement
+- ```sql
+    RAISERROR (50005,1,1)
+    ```
+- To remove a message from the sys.messages, you use the stored procedure sp_dropmessage
+- ```sql
+    EXEC sp_dropmessage 
+        @msgnum = 50005;  
+    ```
+message_text 
+- The message_text is a user-defined message with formatting like the printf function in C standard library. 
+- ```sql
+    RAISERROR ( 'Whoops, an error occurred.',1,1)
+    ```
+severity 
+- The severity level is an integer between 0 and 25, with each level representing the seriousness of the error.
+    - 0–10 Informational messages
+    - 11–18 Errors
+    - 19–25 Fatal errors
+
+state 
+- If you raise the same user-defined error at multiple locations, you can use a unique state number for each location to make it easier to find which section of the code is causing the errors.
+
+WITH option
+- WITH LOG logs the error in the error log and application log for the instance of the SQL Server Database Engine.
+- WITH NOWAIT sends the error message to the client immediately.
+- WITH SETERROR sets the ERROR_NUMBER and @@ERROR values to message_id or 50000, regardless of the severity level.
+```sql
+DECLARE 
+    @ErrorMessage  NVARCHAR(4000), 
+    @ErrorSeverity INT, 
+    @ErrorState    INT;
+
+BEGIN TRY
+    RAISERROR('Error occurred in the TRY block.', 17, 1);
+END TRY
+BEGIN CATCH
+    SELECT 
+        @ErrorMessage = ERROR_MESSAGE(), 
+        @ErrorSeverity = ERROR_SEVERITY(), 
+        @ErrorState = ERROR_STATE();
+
+    -- return the error inside the CATCH block
+    RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+END CATCH;
+```
+
+### THROW
+- The THROW statement raises an exception and transfers execution to a CATCH block of a TRY CATCH construct.
+```sql
+THROW [ error_number ,  
+        message ,  
+        state ];
+```
+error_number 
+- An integer that represents the exception.
+message 
+- The message is a string of type NVARCHAR(2048) that describes the exception.
+state 
+- Indicates the state associated with the message.
+
+If you don’t specify any parameter for the THROW statement, you must place the THROW statement inside a CATCH block:
+```sql
+BEGIN TRY
+    -- statements that may cause errors
+END TRY
+BEGIN CATCH
+    -- statement to handle errors 
+    THROW;   
+END CATCH
+```
+```sql
+THROW 50005, N'An error occurred', 1;
+```
+```sql
+BEGIN TRY
+    --  cause error
+    INSERT INTO hr.employees(id, fullname) VALUES(1, 'Bela');
+END TRY
+BEGIN CATCH
+    PRINT('Raise the caught error again');
+    THROW;
+END CATCH
+```
+
+### Dynamic SQL
+Dynamic SQL is a programming technique that allows you to construct SQL statements dynamically at runtime.<br>
+Creating a dynamic SQL is simple, you just need to make it a string as follows:
+```sql
+'SELECT * FROM production.products';
+```
+To execute a dynamic SQL statement, you call the stored procedure sp_executesql.
+```sql
+EXEC sp_executesql N'SELECT * FROM production.products';
+```
+Példa
+```sql
+-- Declare two variables, @table for holding the name of the table from which you want to query and @sql for holding the dynamic SQL.
+DECLARE 
+    @table NVARCHAR(128),
+    @sql NVARCHAR(MAX);
+
+-- Set the value of the @table variable to production.products
+SET @table = N'production.products';
+
+-- Construct the dynamic SQL by concatenating the SELECT statement with the table name parameter:
+SET @sql = N'SELECT * FROM ' + @table;
+
+-- Call the sp_executesql stored procedure by passing the @sql parameter.
+EXEC sp_executesql @sql;
+```
+The code block above produces the exact result set as the following statement:
+```sql
+SELECT * FROM production.products;
+```
+**Dynamic SQL often constructs queries by concatenating user inputs, making it vulnerable to SQL injection if not properly sanitized.**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
