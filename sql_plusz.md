@@ -2517,7 +2517,141 @@ ON ALL SERVER;
 ```
 
 ## User-defined Functions
+### Table Variables
+Table variables are kinds of variables that allow you to hold rows of data.
+```sql
+-- declare a table variable, you use the DECLARE statement
+DECLARE @table_variable_name TABLE (
+    column_list
+);
+```
+Similar to local variables, table variables are out of scope at the end of the batch.
+```sql
+-- declare a table variable named @product_table which consists of three columns: product_name, brand_id, and list_price
+DECLARE @product_table TABLE (
+    product_name VARCHAR(MAX) NOT NULL,
+    brand_id INT NOT NULL,
+    list_price DEC(11,2) NOT NULL
+);
 
+-- insert rows into the table variables using the INSERT statement
+INSERT INTO @product_table
+SELECT
+    product_name,
+    brand_id,
+    list_price
+FROM
+    production.products
+WHERE
+    category_id = 1;
+
+-- query data from the table variables using the SELECT statement
+SELECT
+    *
+FROM
+    @product_table;
+```
+- Az egészet egyben kell futtatni, különben errort kapunk.
+
+
+
+
+
+
+
+
+
+# MongoDb
+document-oriented database that stores data as BSON (binary JSON) documents
+
+Documents
+- Self-contained records made of field–value pairs.
+- Can contain nested documents and arrays.
+- Map naturally to objects in most programming languages.
+
+Collections
+- Groups of documents (similar to tables, but without rigid schemas).
+S- upport flexible or enforced schemas depending on your needs.
+
+BSON Format
+- Binary-encoded JSON that supports more data types and faster processing.
+
+## Paradigm 
+### SQL
+- relational databases
+- designed to store data that has a structured schema
+
+### MongoDB
+- support this different type of data that was unstructured and not suitable for schemas
+
+## How Data is stored
+### SQL
+- data is stored in tables 
+- column denotes the attribute and row represents a particular record
+- relational property where different tables are related to each other with foreign keys, primary keys.
+
+### MongoDB
+- data is stored in collections(~SQL tables)
+- a collection can consist of many documents in which data is stored in JSON format of key-value. 
+- cannot establish relationship between the unstructured data
+
+## Scalability
+### SQL
+- Traditionally scales vertically (increasing memory size, disk space or computing power).
+- Some modern SQL systems support horizontal scaling, but not as natively.
+
+### MongoDB
+- Built for horizontal scaling (sharding).
+- Easily handles massive datasets and distributed workloads.
+
+## Reliability and Availability
+### SQL
+- architecture moved towards a distributed database, where the database runs on a cluster of nodes, thus increasing resilience
+- Long-standing ACID compliance.
+- Strong consistency and integrity guarantees.
+
+### MongoDB
+- originally designed keeping resilience in mind
+- Supports ACID transactions across multiple documents.
+- Replication built‑in for high availability.
+
+## Schema
+### SQL
+- predefined schema to which the data should comply
+
+### MongoDB
+- no need to predefine any schema
+- collection can store different types of documents
+
+
+
+
+
+
+
+## Querying and Analytics
+### SQL
+- Uses SQL (Structured Query Language).
+- Excels at complex joins, window functions, and analytical queries.
+- Ideal for systems requiring strict consistency and relational logic.
+
+### MongoDB
+- Uses a rich document query API.
+- Supports nested queries, arrays, geospatial search, aggregation pipelines.
+- Great for real‑time analytics and dynamic data exploration.
+
+| | MongoDB | MySQL |
+|- |---------|--------|
+| Paradigm | NoSQL, supports unstructured data | SQL, supports structured data with schemas |
+| Data Storage | Collections containing JSON documents | Tables with rows and columns |
+| Relationships | No support for table relationships | Supports relationships with foreign keys and primary keys |
+| Data Model | Non-relational | Relational |
+| Scalability | Supports horizontal scaling (sharding) | Supports vertical scaling |
+| Reliability and Availability | Built for resilience and availability | Architecture moved towards distributed databases for reliability |
+| Schema | No predefined schema, dynamic structure | Predefined schema required for data structure |
+| Query Language | Limited document querying, no support for joins | Uses SQL for querying and advanced analytics functions |
+
+SQL-ből könnyen lehet MongoDB-re migrálni
 
 
 
