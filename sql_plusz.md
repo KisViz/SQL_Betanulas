@@ -2138,35 +2138,385 @@ SELECT * FROM production.products;
 ```
 **Dynamic SQL often constructs queries by concatenating user inputs, making it vulnerable to SQL injection if not properly sanitized.**
 
+## Triggers
+### CREATE TRIGGER
+```sql
+CREATE TRIGGER [schema_name.]trigger_name
+ON table_name
+AFTER  {[INSERT],[UPDATE],[DELETE]}
+[NOT FOR REPLICATION]
+AS
+{sql_statements}
+```
+- The schema_name is the name of the schema to which the new trigger belongs. The schema name is optional.
+- The trigger_name is the user-defined name for the new trigger.
+- The table_name is the table to which the trigger applies.
+- The event is listed in the AFTER clause. The event could be INSERT, UPDATE, or DELETE. A single trigger can fire in response to one or more actions against the table.
+- The NOT FOR REPLICATION option instructs SQL Server not to fire the trigger when data modification is made as part of a replication process.
+- The sql_statements is one or more Transact-SQL used to carry out actions once an event occurs.
+
+SQL Server provides two virtual tables that are available specifically for triggers called INSERTED and DELETED tables. SQL Server uses these tables to capture the data of the modified row before and after the event occurs.
+
+DML event|	INSERTED table holds|	DELETED table holds
+|-|-|-|
+INSERT|	rows to be inserted|	empty
+UPDATE|	new rows modified by the update|	existing rows modified by the update
+DELETE|	empty|	rows to be deleted
+
+```sql
+-- Create a table for logging the changes
+CREATE TABLE production.product_audits(
+    change_id INT IDENTITY PRIMARY KEY,
+    product_id INT NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    brand_id INT NOT NULL,
+    category_id INT NOT NULL,
+    model_year SMALLINT NOT NULL,
+    list_price DEC(10,2) NOT NULL,
+    updated_at DATETIME NOT NULL,
+    operation CHAR(3) NOT NULL,
+    CHECK(operation = 'INS' or operation='DEL')
+);
+
+-- Creating an after DML trigger
+-- create a new trigger
+CREATE TRIGGER production.trg_product_audit
+-- specify the name of the table, which the trigger will fire when an event occurs
+ON production.products
+--  list the one or more events which will call the trigger in the AFTER clause
+AFTER INSERT, DELETE
+-- body of the trigger begins
+AS
+BEGIN
+    -- inside the body of the trigger, you set the SET NOCOUNT to ON to suppress the number of rows affected messages from being returned whenever the trigger is fired
+    SET NOCOUNT ON;
+    -- trigger will insert a row into the production.product_audits table whenever a row is inserted into or deleted from the production.products table
+    INSERT INTO production.product_audits(
+        product_id, 
+        product_name,
+        brand_id,
+        category_id,
+        model_year,
+        list_price, 
+        updated_at, 
+        operation
+    )
+    SELECT
+        i.product_id,
+        product_name,
+        brand_id,
+        category_id,
+        model_year,
+        i.list_price,
+        GETDATE(),
+        'INS'
+    FROM
+        inserted i
+    UNION ALL
+    SELECT
+        d.product_id,
+        product_name,
+        brand_id,
+        category_id,
+        model_year,
+        d.list_price,
+        GETDATE(),
+        'DEL'
+    FROM
+        deleted d;
+END
+```
+```sql
+INSERT INTO production.products(
+    product_name, 
+    brand_id, 
+    category_id, 
+    model_year, 
+    list_price
+)
+VALUES (
+    'Test product',
+    1,
+    1,
+    2018,
+    599
+);
+
+DELETE FROM 
+    production.products
+WHERE 
+    product_id = 322;
 
 
+SELECT 
+    * 
+FROM 
+    production.product_audits;
+```
 
+### INSTEAD OF Trigger
+Allows you to skip an INSERT, DELETE, or UPDATE statement to a table or a view and execute other statements defined in the trigger instead. The actual insert, delete, or update operation does not occur at all.
+```sql
+CREATE TRIGGER [schema_name.] trigger_name
+ON {table_name | view_name }
+INSTEAD OF {[INSERT] [,] [UPDATE] [,] [DELETE] }
+AS
+{sql_statements}
+```
+- First, specify the name of the trigger and optionally the name of the schema to which the trigger belongs in the CREATE TRIGGER clause.
+- Second, specify the name of the table or view which the trigger associated with.
+- Third, specify an event such as INSERT, DELETE, or UPDATE which the trigger will fire in the INSTEAD OF clause. The trigger may be called to respond to one or multiple events.
+- Fourth, place the trigger body after the AS keyword. A trigger’s body may consist of one or more Transact-SQL statements.
+```sql
+-- creates a new table named production.brand_approvals for storing pending approval brands
+CREATE TABLE production.brand_approvals(
+    brand_id INT IDENTITY PRIMARY KEY,
+    brand_name VARCHAR(255) NOT NULL
+);
 
+-- creates a new view named production.vw_brands against the production.brands and production.brand_approvals tables
+CREATE VIEW production.vw_brands 
+AS
+SELECT
+    brand_name,
+    'Approved' approval_status
+FROM
+    production.brands
+UNION
+SELECT
+    brand_name,
+    'Pending Approval' approval_status
+FROM
+    production.brand_approvals;
 
+-- once a row is inserted into the production.vw_brands view, we need to route it to the production.brand_approvals table via the following INSTEAD OF trigger
+CREATE TRIGGER production.trg_vw_brands 
+ON production.vw_brands
+INSTEAD OF INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO production.brand_approvals ( 
+        brand_name
+    )
+    SELECT
+        i.brand_name
+    FROM
+        inserted i
+    WHERE
+        i.brand_name NOT IN (
+            SELECT 
+                brand_name
+            FROM
+                production.brands
+        );
+END
+```
 
+### DDL triggers
+DDL triggers respond to server or database events rather than to table data modifications. These events created by the Transact-SQL statement that normally starts with one of the following keywords CREATE, ALTER, DROP, GRANT, DENY, REVOKE, or UPDATE STATISTICS.
+```sql
+CREATE TRIGGER trigger_name
+ON { DATABASE |  ALL SERVER}
+[WITH ddl_trigger_option]
+FOR {event_type | event_group }
+AS {sql_statement}
+```
+#### trigger_name 
+Specify the user-defined name of trigger after the CREATE TRIGGER keywords.
 
+#### DATABASE | ALL SERVER 
+Use DATABASE if the trigger respond to database-scoped events or ALL SERVER if the trigger responds to the server-scoped events.
 
+#### ddl_trigger_option 
+The ddl_trigger_option specifies ENCRYPTION and/or EXECUTE AS clause. ENCRYPTION encrypts the definition of the trigger. EXECUTE AS defines the security context under which the trigger is executed.
 
+#### event_type | event_group
+The event_type indicates a DDL event that causes the trigger to fire.<br>
+The event_group is a group of event_type event such as DDL_TABLE_EVENTS
 
+```sql
+-- create a new table named index_logs to log the index changes
+CREATE TABLE index_logs (
+    log_id INT IDENTITY PRIMARY KEY,
+    event_data XML NOT NULL,
+    changed_by SYSNAME NOT NULL
+);
 
+-- create a DDL trigger to track index changes and insert events data into the index_logs table
+CREATE TRIGGER trg_index_changes
+ON DATABASE
+FOR	
+    CREATE_INDEX,
+    ALTER_INDEX, 
+    DROP_INDEX
+AS
+BEGIN
+    SET NOCOUNT ON;
 
+    INSERT INTO index_logs (
+        event_data,
+        changed_by
+    )
+    VALUES (
+        EVENTDATA(),
+        USER
+    );
+END;
+GO
 
+--create indexes for the first_name and last_name columns of the sales.customers table
+CREATE NONCLUSTERED INDEX nidx_fname
+ON sales.customers(first_name);
+GO
 
+CREATE NONCLUSTERED INDEX nidx_lname
+ON sales.customers(last_name);
+GO
 
+-- query data from the index_changes table to check whether the index creation event was captured by the trigger properly:
+SELECT 
+    *
+FROM
+    index_logs;
+```
 
+### DISABLE TRIGGER
+```sql
+DISABLE TRIGGER [schema_name.][trigger_name] 
+ON [object_name | DATABASE | ALL SERVER]
+```
+1. Specify the name of the schema to which the trigger belongs and the name of the trigger that you want to disable after the DISABLE TRIGGER keywords.
+2. Specify the table name or view that the trigger was bound to if the trigger is a DML trigger. Use DATABASE if the trigger is DDL database-scoped trigger, or SERVER if the trigger is DDL server-scoped trigger.
+```sql
+CREATE TABLE sales.members (
+    member_id INT IDENTITY PRIMARY KEY,
+    customer_id INT NOT NULL,
+    member_level CHAR(10) NOT NULL
+);
 
+CREATE TRIGGER sales.trg_members_insert
+ON sales.members
+AFTER INSERT
+AS
+BEGIN
+    PRINT 'A new member has been inserted';
+END;
 
+INSERT INTO sales.members(customer_id, member_level)
+VALUES(1,'Silver');
+-- because of the INSERT event, the triggered was fired and printed out the message
 
+-- disable the sales.trg_members_insert trigger
+DISABLE TRIGGER sales.trg_members_insert 
+ON sales.members;
 
+-- now if you insert a new row into the sales.members table, the trigger will not be fired
+INSERT INTO sales.members(customer_id, member_level)
+VALUES(2,'Gold');
+-- It means that the trigger has been disabled.
+```
+#### Disable all trigger on a table
+```sql
+DISABLE TRIGGER ALL ON table_name;
+```
+```sql
+-- disable all triggers on the sales.members table
+DISABLE TRIGGER ALL ON sales.members;
+```
+#### Disable all triggers on a database
+```sql
+DISABLE TRIGGER ALL ON DATABASE;
+```
 
+### ENABLE TRIGGER
+The ENABLE TRIGGER statement allows you to enable a trigger so that the trigger can be fired whenever an event occurs.
+```sql
+ENABLE TRIGGER [schema_name.][trigger_name] 
+ON [object_name | DATABASE | ALL SERVER]
+```
+1. specify the name of the trigger that you want to enable. Optionally, you can specify the name of the schema to which the trigger belongs.
+2. specify the table to which the trigger belongs if the trigger is a DML trigger. Use DATABASE if the trigger is a DDL database-scoped trigger or ALL SERVER if the trigger is DDL server-scoped trigger.
+```sql
+ENABLE TRIGGER sales.trg_members_insert
+ON sales.members;
+```
 
+#### Enable all triggers of a table
+```sql
+ENABLE TRIGGER ALL ON table_name;
+```
 
+#### Enable all triggers of a database
+```sql
+ENABLE TRIGGER ALL ON DATABASE; 
+```
 
+### View Trigger Definition
 
+#### Getting trigger definition by querying from a system view
+```sql
+SELECT 
+    definition   
+FROM 
+    sys.sql_modules  
+WHERE 
+    object_id = OBJECT_ID('production.trg_product_audit'); 
+```
 
+#### Getting trigger definition using OBJECT_DEFINITION function
+```sql
+SELECT 
+    OBJECT_DEFINITION (
+        OBJECT_ID(
+            'production.trg_product_audit'
+        )
+    ) AS trigger_definition;
+```
 
+#### Getting trigger definition using sp_helptext stored procedure
+```sql
+EXEC sp_helptext 'production.trg_product_audit' ;
+```
 
+#### Getting trigger definition using SSMS
+![alt text](media/image-61.png)
 
+### List All Triggers
+To list all triggers in a SQL Server, you query data from the sys.triggers view
+```sql
+SELECT  
+    name,
+    is_instead_of_trigger
+FROM 
+    sys.triggers  
+WHERE 
+    type = 'TR';
+```
+
+### DROP TRIGGER
+```sql
+DROP TRIGGER [ IF EXISTS ] [schema_name.]trigger_name [ ,...n ];
+```
+- IF EXISTS conditionally removes the trigger only when it already exists.
+- schema_name is the name of the schema to which the DML trigger belongs.
+- trigger_name is the name of the trigger that you wish to remove.
+
+#### remove one or more DDL triggers
+```sql
+DROP TRIGGER [ IF EXISTS ] trigger_name [ ,...n ]   
+ON { DATABASE | ALL SERVER };
+```
+- DATABASE indicates that the scope of the DDL trigger applies to the current database.
+- ALL SERVER indicates the scope of the DDL trigger applies to the current server.
+
+#### remove a LOGON event trigger
+```sql
+DROP TRIGGER [ IF EXISTS ] trigger_name [ ,...n ]   
+ON ALL SERVER;
+```
+
+## User-defined Functions
 
 
 
