@@ -2553,6 +2553,102 @@ FROM
 ```
 - Az egészet egyben kell futtatni, különben errort kapunk.
 
+#### Restrictions on table variables
+1. define the structure of the table variable during the declaration. Unlike a regular or temporary table, you cannot alter the structure of the table variables after they are declared.
+2. statistics help the query optimizer to come up with a good query’s execution plan. Unfortunately, table variables do not contain statistics. Therefore, you should use table variables to hold a small number of rows.
+3. cannot use the table variable as an input or output parameter like other data types. However, you can return a table variable from a user-defined function.
+4. cannot create non-clustered indexes for table variables. However, starting with SQL Server 2014, memory-optimized table variables are available with the introduction of the new In-Memory OLTP that allows you to add non-clustered indexes as part of table variable’s declaration.
+5. if you are using a table variable with a join, you need to alias the table in order to execute the query. 
+
+#### Performance of table variables
+- Using table variables in a stored procedure results in fewer recompilations than using a temporary table.
+- In addition, a table variable use fewer resources than a temporary table with less locking and logging overhead.
+- Similar to the temporary table, the table variables do live in the tempdb database, not in the memory.
+
+### Scalar Functions
+Server scalar function takes one or more parameters and returns a single value.
+
+#### Creating a scalar function
+```sql
+CREATE FUNCTION [schema_name.]function_name (parameter_list)
+RETURNS data_type AS
+BEGIN
+    statements
+    RETURN value
+END
+```
+1. specify the name of the function after the CREATE FUNCTION keywords.
+2. specify a list of parameters surrounded by parentheses after the function name.
+3. specify the data type of the return value in the RETURNS statement.
+4. include a RETURN statement to return a value inside the body of the function.
+
+#### Modifying a scalar function
+```sql
+ALTER FUNCTION [schema_name.]function_name (parameter_list)
+    RETURN data_type AS
+    BEGIN
+        statements
+        RETURN value
+    END
+```
+```sql
+-- create a function that calculates the net sales based on the quantity, list price, and discount
+CREATE FUNCTION sales.udfNetSale(
+    @quantity INT,
+    @list_price DEC(10,2),
+    @discount DEC(4,2)
+)
+RETURNS DEC(10,2)
+AS 
+BEGIN
+    RETURN @quantity * @list_price * (1 - @discount);
+END;
+
+-- calling the scalar funciton
+SELECT 
+    sales.udfNetSale(10,100,0.1) net_sale;
+
+```
+![alt text](media/image-62.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2571,11 +2667,14 @@ Documents
 
 Collections
 - Groups of documents (similar to tables, but without rigid schemas).
-S- upport flexible or enforced schemas depending on your needs.
+- Support flexible or enforced schemas depending on your needs.
 
 BSON Format
 - Binary-encoded JSON that supports more data types and faster processing.
 
+https://www.knowi.com/blog/mongodb-vs-sql/
+
+https://www.mongodb.com/resources/basics/databases/nosql-explained/nosql-vs-sql
 ## Paradigm 
 ### SQL
 - relational databases
@@ -2623,12 +2722,6 @@ BSON Format
 - no need to predefine any schema
 - collection can store different types of documents
 
-
-
-
-
-
-
 ## Querying and Analytics
 ### SQL
 - Uses SQL (Structured Query Language).
@@ -2654,6 +2747,236 @@ BSON Format
 SQL-ből könnyen lehet MongoDB-re migrálni
 
 
+https://www.humongous.io/tools/playground/mongodb/new
+```json
+[
+  {
+    item: "journal",
+    qty: 25,
+    size: {
+      h: 14,
+      w: 21,
+      uom: "cm"
+    },
+    status: "A"
+  },
+  {
+    item: "notebook",
+    qty: 50,
+    size: {
+      h: 8.5,
+      w: 11,
+      uom: "in"
+    },
+    status: "A"
+  },
+  {
+    item: "paper",
+    qty: 100,
+    size: {
+      h: 8.5,
+      w: 11,
+      uom: "in"
+    },
+    status: "D"
+  },
+  {
+    item: "planner",
+    qty: 75,
+    size: {
+      h: 22.85,
+      w: 30,
+      uom: "cm"
+    },
+    status: "D"
+  },
+  {
+    item: "postcard",
+    qty: 45,
+    size: {
+      h: 10,
+      w: 15.25,
+      uom: "cm"
+    },
+    status: "A"
+  }
+]
+```
+### Lekérdezés
+https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
+
+Returns: A cursor to the documents that match the query criteria. When the find() method "returns documents," the method is actually returning a cursor to the documents.
+
+MongoDB:
+```js
+db.collection.find( <query>, <projection>, <options> )
+
+db.collection.find()
+
+db.collection.find({
+  status: "A"
+})
+```
+Node.js-ben:
+```js
+const cursor = db.collection('inventory').find({});
+
+const cursor = db.collection('inventory').find({ status: 'A' });
+```
+
+### Beszúrás
+**NB!**
+- **collection ~ SQL table**
+- **document ~ SQL record**
+
+https://www.mongodb.com/docs/manual/tutorial/insert-documents/
+
+Metódus|	Dokumentumok száma|
+|-|-|
+insert()|	1 vagy több, **Deprecated!**|
+insertOne()|	1	|
+insertMany()|	több|
+
+#### Insert a Single Document: 
+Returns a document containing:
+- A boolean acknowledged as true if the operation ran with write concern or false if write concern was disabled.
+- A field insertedId with the _id value of the inserted document.
+
+MongoDB:
+```js
+db.collection.insertOne(
+    <document>,
+    {
+      writeConcern: <document>
+    }
+)
+
+db.collection.insertOne({
+  item: 'canvas',
+  qty: 100,
+  tags: ['cotton'],
+  size: { h: 28, w: 35.5, uom: 'cm' }
+});
+```
+Node.js-ben:
+```js
+await db.collection('inventory').insertOne({
+  item: 'canvas',
+  qty: 100,
+  tags: ['cotton'],
+  size: { h: 28, w: 35.5, uom: 'cm' }
+});
+```
+
+#### Insert Multiple Documents
+Returns a document containing:
+- An acknowledged boolean, set to true if the operation ran with write concern or false if write concern was disabled
+- An insertedIds array, containing _id values for each successfully inserted document
+
+MongoDB:
+```js
+db.collection.insertMany(
+   [ <document 1> , <document 2>, ... ],
+   {
+      writeConcern: <document>,
+      ordered: <boolean>
+   }
+)
+
+db.collection.insertMany([
+  {
+    item: 'journal',
+    qty: 25,
+    tags: ['blank', 'red'],
+    size: { h: 14, w: 21, uom: 'cm' }
+  },
+  {
+    item: 'mat',
+    qty: 85,
+    tags: ['gray'],
+    size: { h: 27.9, w: 35.5, uom: 'cm' }
+  },
+  {
+    item: 'mousepad',
+    qty: 25,
+    tags: ['gel', 'blue'],
+    size: { h: 19, w: 22.85, uom: 'cm' }
+  }
+]);
+```
+
+Node.js-ben:
+```sql
+await db.collection('inventory').insertMany([
+  {
+    item: 'journal',
+    qty: 25,
+    tags: ['blank', 'red'],
+    size: { h: 14, w: 21, uom: 'cm' }
+  },
+  {
+    item: 'mat',
+    qty: 85,
+    tags: ['gray'],
+    size: { h: 27.9, w: 35.5, uom: 'cm' }
+  },
+  {
+    item: 'mousepad',
+    qty: 25,
+    tags: ['gel', 'blue'],
+    size: { h: 19, w: 22.85, uom: 'cm' }
+  }
+]);
+```
+
+### Frissítés
+#### Update a Single Document
+Returns a document that contains:
+- matchedCount containing the number of matched documents
+- modifiedCount containing the number of modified documents
+- upsertedId containing the _id for the upserted document
+- upsertedCount containing the number of upserted documents
+- A boolean acknowledged as true if the operation ran with write concern or false if write concern was disabled
+
+MongoDB:
+```js
+db.collection.updateOne(
+   <filter>,
+   <update>,
+   {
+     upsert: <boolean>,
+     writeConcern: <document>,
+     collation: <document>,
+     arrayFilters: [ <filterdocument1>, ... ],
+     hint:  <document|string>,
+     let: <document>,
+     sort: <document>,
+     maxTimeMS: <int>,
+     bypassDocumentValidation: <boolean>
+   }
+)
+
+db.collection.updateOne(
+  { item: 'paper' },
+  {
+    $set: { 'size.uom': 'cm', status: 'P' },
+    $currentDate: { lastModified: true }
+  }
+);
+```
+Node.js-ben:
+```js
+await db.collection('inventory').updateOne(
+  { item: 'paper' },
+  {
+    $set: { 'size.uom': 'cm', status: 'P' },
+    $currentDate: { lastModified: true }
+  }
+);
+```
+
+
+#### Update Multiple Documents
 
 
 
@@ -2664,8 +2987,7 @@ SQL-ből könnyen lehet MongoDB-re migrálni
 
 
 
-
-
+MongoDB lekérdezés, beszúrás, tranzakciók hogy vannak, firebase mögött mongodb van e, hogyan kapcsolódsz, lekérdezés, utsaítások
 
 
 
