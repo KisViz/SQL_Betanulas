@@ -2657,326 +2657,6 @@ SELECT
 
 
 
-# MongoDb
-document-oriented database that stores data as BSON (binary JSON) documents
-
-Documents
-- Self-contained records made of field–value pairs.
-- Can contain nested documents and arrays.
-- Map naturally to objects in most programming languages.
-
-Collections
-- Groups of documents (similar to tables, but without rigid schemas).
-- Support flexible or enforced schemas depending on your needs.
-
-BSON Format
-- Binary-encoded JSON that supports more data types and faster processing.
-
-https://www.knowi.com/blog/mongodb-vs-sql/
-
-https://www.mongodb.com/resources/basics/databases/nosql-explained/nosql-vs-sql
-## Paradigm 
-### SQL
-- relational databases
-- designed to store data that has a structured schema
-
-### MongoDB
-- support this different type of data that was unstructured and not suitable for schemas
-
-## How Data is stored
-### SQL
-- data is stored in tables 
-- column denotes the attribute and row represents a particular record
-- relational property where different tables are related to each other with foreign keys, primary keys.
-
-### MongoDB
-- data is stored in collections(~SQL tables)
-- a collection can consist of many documents in which data is stored in JSON format of key-value. 
-- cannot establish relationship between the unstructured data
-
-## Scalability
-### SQL
-- Traditionally scales vertically (increasing memory size, disk space or computing power).
-- Some modern SQL systems support horizontal scaling, but not as natively.
-
-### MongoDB
-- Built for horizontal scaling (sharding).
-- Easily handles massive datasets and distributed workloads.
-
-## Reliability and Availability
-### SQL
-- architecture moved towards a distributed database, where the database runs on a cluster of nodes, thus increasing resilience
-- Long-standing ACID compliance.
-- Strong consistency and integrity guarantees.
-
-### MongoDB
-- originally designed keeping resilience in mind
-- Supports ACID transactions across multiple documents.
-- Replication built‑in for high availability.
-
-## Schema
-### SQL
-- predefined schema to which the data should comply
-
-### MongoDB
-- no need to predefine any schema
-- collection can store different types of documents
-
-## Querying and Analytics
-### SQL
-- Uses SQL (Structured Query Language).
-- Excels at complex joins, window functions, and analytical queries.
-- Ideal for systems requiring strict consistency and relational logic.
-
-### MongoDB
-- Uses a rich document query API.
-- Supports nested queries, arrays, geospatial search, aggregation pipelines.
-- Great for real‑time analytics and dynamic data exploration.
-
-| | MongoDB | MySQL |
-|- |---------|--------|
-| Paradigm | NoSQL, supports unstructured data | SQL, supports structured data with schemas |
-| Data Storage | Collections containing JSON documents | Tables with rows and columns |
-| Relationships | No support for table relationships | Supports relationships with foreign keys and primary keys |
-| Data Model | Non-relational | Relational |
-| Scalability | Supports horizontal scaling (sharding) | Supports vertical scaling |
-| Reliability and Availability | Built for resilience and availability | Architecture moved towards distributed databases for reliability |
-| Schema | No predefined schema, dynamic structure | Predefined schema required for data structure |
-| Query Language | Limited document querying, no support for joins | Uses SQL for querying and advanced analytics functions |
-
-SQL-ből könnyen lehet MongoDB-re migrálni
-
-
-https://www.humongous.io/tools/playground/mongodb/new
-```json
-[
-  {
-    item: "journal",
-    qty: 25,
-    size: {
-      h: 14,
-      w: 21,
-      uom: "cm"
-    },
-    status: "A"
-  },
-  {
-    item: "notebook",
-    qty: 50,
-    size: {
-      h: 8.5,
-      w: 11,
-      uom: "in"
-    },
-    status: "A"
-  },
-  {
-    item: "paper",
-    qty: 100,
-    size: {
-      h: 8.5,
-      w: 11,
-      uom: "in"
-    },
-    status: "D"
-  },
-  {
-    item: "planner",
-    qty: 75,
-    size: {
-      h: 22.85,
-      w: 30,
-      uom: "cm"
-    },
-    status: "D"
-  },
-  {
-    item: "postcard",
-    qty: 45,
-    size: {
-      h: 10,
-      w: 15.25,
-      uom: "cm"
-    },
-    status: "A"
-  }
-]
-```
-### Lekérdezés
-https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
-
-Returns: A cursor to the documents that match the query criteria. When the find() method "returns documents," the method is actually returning a cursor to the documents.
-
-MongoDB:
-```js
-db.collection.find( <query>, <projection>, <options> )
-
-db.collection.find()
-
-db.collection.find({
-  status: "A"
-})
-```
-Node.js-ben:
-```js
-const cursor = db.collection('inventory').find({});
-
-const cursor = db.collection('inventory').find({ status: 'A' });
-```
-
-### Beszúrás
-**NB!**
-- **collection ~ SQL table**
-- **document ~ SQL record**
-
-https://www.mongodb.com/docs/manual/tutorial/insert-documents/
-
-Metódus|	Dokumentumok száma|
-|-|-|
-insert()|	1 vagy több, **Deprecated!**|
-insertOne()|	1	|
-insertMany()|	több|
-
-#### Insert a Single Document: 
-Returns a document containing:
-- A boolean acknowledged as true if the operation ran with write concern or false if write concern was disabled.
-- A field insertedId with the _id value of the inserted document.
-
-MongoDB:
-```js
-db.collection.insertOne(
-    <document>,
-    {
-      writeConcern: <document>
-    }
-)
-
-db.collection.insertOne({
-  item: 'canvas',
-  qty: 100,
-  tags: ['cotton'],
-  size: { h: 28, w: 35.5, uom: 'cm' }
-});
-```
-Node.js-ben:
-```js
-await db.collection('inventory').insertOne({
-  item: 'canvas',
-  qty: 100,
-  tags: ['cotton'],
-  size: { h: 28, w: 35.5, uom: 'cm' }
-});
-```
-
-#### Insert Multiple Documents
-Returns a document containing:
-- An acknowledged boolean, set to true if the operation ran with write concern or false if write concern was disabled
-- An insertedIds array, containing _id values for each successfully inserted document
-
-MongoDB:
-```js
-db.collection.insertMany(
-   [ <document 1> , <document 2>, ... ],
-   {
-      writeConcern: <document>,
-      ordered: <boolean>
-   }
-)
-
-db.collection.insertMany([
-  {
-    item: 'journal',
-    qty: 25,
-    tags: ['blank', 'red'],
-    size: { h: 14, w: 21, uom: 'cm' }
-  },
-  {
-    item: 'mat',
-    qty: 85,
-    tags: ['gray'],
-    size: { h: 27.9, w: 35.5, uom: 'cm' }
-  },
-  {
-    item: 'mousepad',
-    qty: 25,
-    tags: ['gel', 'blue'],
-    size: { h: 19, w: 22.85, uom: 'cm' }
-  }
-]);
-```
-
-Node.js-ben:
-```sql
-await db.collection('inventory').insertMany([
-  {
-    item: 'journal',
-    qty: 25,
-    tags: ['blank', 'red'],
-    size: { h: 14, w: 21, uom: 'cm' }
-  },
-  {
-    item: 'mat',
-    qty: 85,
-    tags: ['gray'],
-    size: { h: 27.9, w: 35.5, uom: 'cm' }
-  },
-  {
-    item: 'mousepad',
-    qty: 25,
-    tags: ['gel', 'blue'],
-    size: { h: 19, w: 22.85, uom: 'cm' }
-  }
-]);
-```
-
-### Frissítés
-#### Update a Single Document
-Returns a document that contains:
-- matchedCount containing the number of matched documents
-- modifiedCount containing the number of modified documents
-- upsertedId containing the _id for the upserted document
-- upsertedCount containing the number of upserted documents
-- A boolean acknowledged as true if the operation ran with write concern or false if write concern was disabled
-
-MongoDB:
-```js
-db.collection.updateOne(
-   <filter>,
-   <update>,
-   {
-     upsert: <boolean>,
-     writeConcern: <document>,
-     collation: <document>,
-     arrayFilters: [ <filterdocument1>, ... ],
-     hint:  <document|string>,
-     let: <document>,
-     sort: <document>,
-     maxTimeMS: <int>,
-     bypassDocumentValidation: <boolean>
-   }
-)
-
-db.collection.updateOne(
-  { item: 'paper' },
-  {
-    $set: { 'size.uom': 'cm', status: 'P' },
-    $currentDate: { lastModified: true }
-  }
-);
-```
-Node.js-ben:
-```js
-await db.collection('inventory').updateOne(
-  { item: 'paper' },
-  {
-    $set: { 'size.uom': 'cm', status: 'P' },
-    $currentDate: { lastModified: true }
-  }
-);
-```
-
-
-#### Update Multiple Documents
 
 
 
@@ -2987,7 +2667,42 @@ await db.collection('inventory').updateOne(
 
 
 
-MongoDB lekérdezés, beszúrás, tranzakciók hogy vannak, firebase mögött mongodb van e, hogyan kapcsolódsz, lekérdezés, utsaítások
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
