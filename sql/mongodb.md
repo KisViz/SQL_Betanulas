@@ -901,3 +901,54 @@ db.routes.aggregate( [
 ] )
 ```
 - 5 legtöbbször szereplő légitársaság
+```js
+db.routes.aggregate( [
+  {
+    $match : {
+      "airplane" : 767
+    }
+  },
+  {
+    $group : {
+      _id : {
+        "airplane" : "$airplane"
+      },
+      count : {
+        $sum: 1
+      }
+    }
+  },
+  {
+    $sort : {
+      count: -1
+    }
+  }
+] )
+```
+- hány 767-es gép van
+```js
+db.routes.aggregate( [
+  {
+    $match : {
+      "airplane" : "CR2"
+    }
+  },
+  {
+    $group : {
+      _id : {
+        "airplane" : "$airplane"
+      },
+      count : {
+        $sum: 1
+      }
+    }
+  },
+  {
+    $sort : {
+      count: -1
+    }
+  }
+] )
+```
+- hány darab CR"-es gép van
+    - jól lehet lézni, hogy az *airplane* mező tényleg több típust is tárolhat
